@@ -3,7 +3,7 @@ Contributors: Viper007Bond
 Donate link: http://www.viper007bond.com/donate/
 Tags: thumbnail, thumbnails
 Requires at least: 2.8
-Tested up to: 3.1
+Tested up to: 3.3
 Stable tag: trunk
 
 Allows you to regenerate your thumbnails after changing the thumbnail sizes.
@@ -30,6 +30,22 @@ See the [screenshots tab](http://wordpress.org/extend/plugins/regenerate-thumbna
 2. You can resize specific multiples images using the checkboxes and the "Bulk Actions" dropdown
 
 == ChangeLog ==
+
+= Version 2.2.4 =
+
+* Better AJAX response error handling in the JavaScript. This should fix a long-standing bug in this plugin. Props Hew Sutton.
+
+= Version 2.2.3 =
+
+* Make the capability required to use this plugin filterable so themes and other plugins can change it. Props [Jackson Whelan](http://jacksonwhelan.com/).
+
+= Version 2.2.2 =
+
+* Don't check the nonce until we're sure that the action called was for this plugin. Fixes lots of "Are you sure you want to do this?" error messages.
+
+= Version 2.2.1 =
+
+* Fix the bottom bulk action dropdown. Thanks Stefan for pointing out the issue!
 
 = Version 2.2.0 =
 
@@ -86,3 +102,17 @@ Lots of new features!
 = Version 1.0.0 =
 
 * Initial release.
+
+== Upgrade Notice ==
+
+= 2.2.4 =
+Better AJAX response error handling in the JavaScript. This should fix a long-standing bug in this plugin. Props Hew Sutton.
+
+= 2.2.3 =
+Make the capability required to use this plugin filterable so themes and other plugins can change it. Props [Jackson Whelan](http://jacksonwhelan.com/).
+
+= 2.2.2 =
+Fixes lots of "Are you sure you want to do this?" error messages.
+
+= 2.2.1 =
+Fix the bottom bulk action dropdown. Thanks Stefan for pointing out the issue!

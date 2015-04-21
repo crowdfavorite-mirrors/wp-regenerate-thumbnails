@@ -5,13 +5,13 @@
 Plugin Name:  Regenerate Thumbnails
 Plugin URI:   http://www.viper007bond.com/wordpress-plugins/regenerate-thumbnails/
 Description:  Allows you to regenerate all thumbnails after changing the thumbnail sizes.
-Version:      2.2.0
+Version:      2.2.4
 Author:       Viper007Bond
 Author URI:   http://www.viper007bond.com/
 
 **************************************************************************
 
-Copyright (C) 2008-2010 Viper007Bond
+Copyright (C) 2008-2011 Viper007Bond
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -33,9 +33,6 @@ class RegenerateThumbnails {
 
 	// Plugin initialization
 	function RegenerateThumbnails() {
-		if ( ! function_exists( 'admin_url' ) )
-			return false;
-
 		// Load up the localization file if we're using WordPress in a different language
 		// Place it in this plugin's "localization" folder and name it "regenerate-thumbnails-[value in wp-config].mo"
 		load_plugin_textdomain( 'regenerate-thumbnails', false, '/regenerate-thumbnails/localization' );
@@ -45,14 +42,18 @@ class RegenerateThumbnails {
 		add_action( 'wp_ajax_regeneratethumbnail',             array( &$this, 'ajax_process_image' ) );
 		add_filter( 'media_row_actions',                       array( &$this, 'add_media_row_action' ), 10, 2 );
 		//add_filter( 'bulk_actions-upload',                     array( &$this, 'add_bulk_actions' ), 99 ); // A last minute change to 3.1 makes this no longer work
-		add_action( 'admin_head-upload.php',          array( &$this, 'add_bulk_actions_via_javascript' ) );
-		add_action( 'admin_action_bulk_regenerate_thumbnails', array( &$this, 'bulk_action_handler' ) );
+		add_action( 'admin_head-upload.php',                   array( &$this, 'add_bulk_actions_via_javascript' ) );
+		add_action( 'admin_action_bulk_regenerate_thumbnails', array( &$this, 'bulk_action_handler' ) ); // Top drowndown
+		add_action( 'admin_action_-1',                         array( &$this, 'bulk_action_handler' ) ); // Bottom dropdown (assumes top dropdown = default value)
+
+		// Allow people to change what capability is required to use this plugin
+		$this->capability = apply_filters( 'regenerate_thumbs_cap', 'manage_options' );
 	}
 
 
 	// Register the management page
 	function add_admin_menu() {
-		$this->menu_id = add_management_page( __( 'Regenerate Thumbnails', 'regenerate-thumbnails' ), __( 'Regen. Thumbnails', 'regenerate-thumbnails' ), 'manage_options', 'regenerate-thumbnails', array(&$this, 'regenerate_interface') );
+		$this->menu_id = add_management_page( __( 'Regenerate Thumbnails', 'regenerate-thumbnails' ), __( 'Regen. Thumbnails', 'regenerate-thumbnails' ), $this->capability, 'regenerate-thumbnails', array(&$this, 'regenerate_interface') );
 	}
 
 
@@ -73,7 +74,7 @@ class RegenerateThumbnails {
 
 	// Add a "Regenerate Thumbnails" link to the media row actions
 	function add_media_row_action( $actions, $post ) {
-		if ( 'image/' != substr( $post->post_mime_type, 0, 6 ) )
+		if ( 'image/' != substr( $post->post_mime_type, 0, 6 ) || ! current_user_can( $this->capability ) )
 			return $actions;
 
 		$url = wp_nonce_url( admin_url( 'tools.php?page=regenerate-thumbnails&goback=1&ids=' . $post->ID ), 'regenerate-thumbnails' );
@@ -102,7 +103,10 @@ class RegenerateThumbnails {
 
 	// Add new items to the Bulk Actions using Javascript
 	// A last minute change to the "bulk_actions-xxxxx" filter in 3.1 made it not possible to add items using that
-	function add_bulk_actions_via_javascript() { ?>
+	function add_bulk_actions_via_javascript() {
+		if ( ! current_user_can( $this->capability ) )
+			return;
+?>
 		<script type="text/javascript">
 			jQuery(document).ready(function($){
 				$('select[name^="action"] option:last-child').before('<option value="bulk_regenerate_thumbnails"><?php echo esc_attr( __( 'Regenerate Thumbnails', 'regenerate-thumbnails' ) ); ?></option>');
@@ -114,10 +118,13 @@ class RegenerateThumbnails {
 
 	// Handles the bulk actions POST
 	function bulk_action_handler() {
-		check_admin_referer( 'bulk-media' );
+		if ( empty( $_REQUEST['action'] ) || ( 'bulk_regenerate_thumbnails' != $_REQUEST['action'] && 'bulk_regenerate_thumbnails' != $_REQUEST['action2'] ) )
+			return;
 
 		if ( empty( $_REQUEST['media'] ) || ! is_array( $_REQUEST['media'] ) )
 			return;
+
+		check_admin_referer( 'bulk-media' );
 
 		$ids = implode( ',', array_map( 'intval', $_REQUEST['media'] ) );
 
@@ -143,7 +150,7 @@ class RegenerateThumbnails {
 		// If the button was clicked
 		if ( ! empty( $_POST['regenerate-thumbnails'] ) || ! empty( $_REQUEST['ids'] ) ) {
 			// Capability check
-			if ( !current_user_can( 'manage_options' ) )
+			if ( ! current_user_can( $this->capability ) )
 				wp_die( __( 'Cheatin&#8217; uh?' ) );
 
 			// Form nonce check
@@ -272,6 +279,12 @@ class RegenerateThumbnails {
 					url: ajaxurl,
 					data: { action: "regeneratethumbnail", id: id },
 					success: function( response ) {
+						if ( response !== Object( response ) || ( typeof response.success === "undefined" && typeof response.error === "undefined" ) ) {
+							response = new Object;
+							response.success = false;
+							response.error = "<?php printf( esc_js( __( 'The resize request was abnormally terminated (ID %s). This is likely due to the image exceeding available memory or some other type of fatal error.', 'regenerate-thumbnails' ) ), '" + id + "' ); ?>";
+						}
+
 						if ( response.success ) {
 							RegenThumbsUpdateStatus( id, true, response );
 						}
@@ -291,7 +304,7 @@ class RegenerateThumbnails {
 
 						if ( rt_images.length && rt_continue ) {
 							RegenThumbs( rt_images.shift() );
-						} 
+						}
 						else {
 							RegenThumbsFinishUp();
 						}
@@ -346,7 +359,7 @@ class RegenerateThumbnails {
 		if ( ! $image || 'attachment' != $image->post_type || 'image/' != substr( $image->post_mime_type, 0, 6 ) )
 			die( json_encode( array( 'error' => sprintf( __( 'Failed resize: %s is an invalid image ID.', 'regenerate-thumbnails' ), esc_html( $_REQUEST['id'] ) ) ) ) );
 
-		if ( !current_user_can( 'manage_options' ) )
+		if ( ! current_user_can( $this->capability ) )
 			$this->die_json_error_msg( $image->ID, __( "Your user account doesn't have permission to resize images", 'regenerate-thumbnails' ) );
 
 		$fullsizepath = get_attached_file( $image->ID );
